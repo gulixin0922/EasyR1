@@ -58,7 +58,7 @@ SYSTEM_PROMPT="""You FIRST think about the reasoning process as an internal mono
 
 srun --partition $PARTITION --overlap --nodes=1 --ntasks=1 -w "$head_node" \
     python3 -m verl.trainer.main \
-        config=examples/grpo_example.yaml \
+        config=examples/config.yaml \
         data.train_files=/mnt/petrelfs/share_data/gulixin/r1_like_data/MMR1-Math-RL-Data-v0/data/train-00000-of-00001.parquet \
         data.val_files=/mnt/petrelfs/share_data/gulixin/r1_like_data/MMR1-Math-RL-Data-v0/data/validation-00000-of-00001.parquet \
         data.system_prompt="${SYSTEM_PROMPT}" \

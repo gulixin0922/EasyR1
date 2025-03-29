@@ -29,6 +29,17 @@ from transformers import PreTrainedTokenizer, ProcessorMixin
 from ..models.transformers.qwen2_vl import get_rope_index
 from . import torch_functional as VF
 
+try:
+    from petrel_client.client import Client
+    from petrel_client.common.config import Config
+except ImportError as E:
+    print('petrel_client is not installed. If you read data locally instead of from ceph, ignore it.')
+import sys
+import json
+import random
+import copy
+client = Client('~/petreloss.conf')
+
 
 def collate_fn(features: List[Dict[str, Any]]) -> Dict[str, Any]:
     tensors = defaultdict(list)
@@ -69,6 +80,12 @@ def process_image(image: Union[Dict[str, Any], ImageObject], max_pixels: int, mi
     return image
 
 
+def pil_loader(img_str):
+    buff = BytesIO(img_str)
+    img = Image.open(buff)
+    return img.convert('RGB')
+
+
 class RLHFDataset(Dataset):
     """
     We assume the dataset contains a column that contains prompts and other information
@@ -104,7 +121,11 @@ class RLHFDataset(Dataset):
         else:
             data_split = "train"
 
-        if os.path.isdir(data_path):
+        if os.path.isfile(data_path) and data_path.endswith('.jsonl'):
+            with open(data_path, 'r') as f:
+                self.dataset = f.readlines()
+                self.dataset = [json.loads(line) for line in self.dataset]
+        elif os.path.isdir(data_path):
             self.dataset = load_dataset("parquet", data_dir=data_path, split="train")
         elif os.path.isfile(data_path):
             self.dataset = load_dataset("parquet", data_files=data_path, split="train")
@@ -114,49 +135,72 @@ class RLHFDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
+    def load_image(self, image_path):
+        # Load the image using tcs_loader if available, otherwise use PIL
+        if 's3://' in image_path:
+            img_value_str = client.get(image_path)
+            img = pil_loader(img_value_str)
+            return img
+        return Image.open(image_path).convert('RGB')
+
     def __getitem__(self, index):
-        row_dict: dict = self.dataset[index]
-        messages = [{"role": "user", "content": row_dict[self.prompt_key]}]
-        if self.system_prompt:
-            messages.insert(0, {"role": "system", "content": self.system_prompt})
+        while True:
+            row_dict: dict = copy.deepcopy(self.dataset[index])
+            messages = [{"role": "user", "content": row_dict[self.prompt_key]}]
+            if self.system_prompt:
+                messages.insert(0, {"role": "system", "content": self.system_prompt})
 
-        prompt = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
+            prompt = self.tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
 
-        if self.image_key in row_dict:
-            prompt = prompt.replace("<image>", "<|vision_start|><|image_pad|><|vision_end|>")
-            row_dict["multi_modal_data"] = {
-                "image": [
-                    process_image(image, self.max_pixels, self.min_pixels) for image in row_dict.pop(self.image_key)
-                ]
-            }
-            model_inputs = self.processor(row_dict["multi_modal_data"]["image"], prompt, return_tensors="pt")
-            input_ids = model_inputs.pop("input_ids")[0]
-            attention_mask = model_inputs.pop("attention_mask")[0]
-            row_dict["multi_modal_inputs"] = dict(model_inputs)
-            position_ids = get_rope_index(
-                self.processor,
-                input_ids=input_ids,
-                image_grid_thw=model_inputs["image_grid_thw"],
-                attention_mask=attention_mask,
-            )  # (3, seq_length)
-        else:
-            model_inputs = self.tokenizer([prompt], add_special_tokens=False, return_tensors="pt")
-            input_ids = model_inputs.pop("input_ids")[0]
-            attention_mask = model_inputs.pop("attention_mask")[0]
-            position_ids = torch.clip(attention_mask.cumsum(dim=0) - 1, min=0, max=None)  # (seq_length,)
+            if self.image_key in row_dict:
+                if isinstance(row_dict[self.image_key][0], str):
+                    for img_id, image_path in enumerate(row_dict[self.image_key]):
+                        row_dict[self.image_key][img_id] = self.load_image(image_path)
+                    
+                prompt = prompt.replace("<image>", "<|vision_start|><|image_pad|><|vision_end|>")
+                row_dict["multi_modal_data"] = {
+                    "image": [
+                        process_image(image, self.max_pixels, self.min_pixels) for image in row_dict.pop(self.image_key)
+                    ]
+                }
+                model_inputs = self.processor(row_dict["multi_modal_data"]["image"], prompt, return_tensors="pt")
+                input_ids = model_inputs.pop("input_ids")[0]
+                attention_mask = model_inputs.pop("attention_mask")[0]
+                row_dict["multi_modal_inputs"] = dict(model_inputs)
+                position_ids = get_rope_index(
+                    self.processor,
+                    input_ids=input_ids,
+                    image_grid_thw=model_inputs["image_grid_thw"],
+                    attention_mask=attention_mask,
+                )  # (3, seq_length)
+            else:
+                model_inputs = self.tokenizer([prompt], add_special_tokens=False, return_tensors="pt")
+                input_ids = model_inputs.pop("input_ids")[0]
+                attention_mask = model_inputs.pop("attention_mask")[0]
+                position_ids = torch.clip(attention_mask.cumsum(dim=0) - 1, min=0, max=None)  # (seq_length,)
+            
+            if len(input_ids) > self.max_prompt_length:
+                print("--------------------------------")
+                print("prompt:", prompt)
+                print("--------------------------------")
+                print("input_ids length:", len(input_ids))
+                index = random.randint(0, len(self.dataset) - 1)
+                continue
+            else:
+                input_ids, attention_mask, position_ids = VF.postprocess_data(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    position_ids=position_ids,
+                    max_length=self.max_prompt_length,
+                    pad_token_id=self.tokenizer.pad_token_id,
+                    left_pad=True,
+                    truncation=self.truncation,
+                )
+                row_dict["input_ids"] = input_ids
+                row_dict["attention_mask"] = attention_mask
+                row_dict["position_ids"] = position_ids
+                row_dict["raw_prompt_ids"] = self.tokenizer.encode(prompt, add_special_tokens=False)
+                row_dict["ground_truth"] = row_dict.pop(self.answer_key)
+                break
 
-        input_ids, attention_mask, position_ids = VF.postprocess_data(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            max_length=self.max_prompt_length,
-            pad_token_id=self.tokenizer.pad_token_id,
-            left_pad=True,
-            truncation=self.truncation,
-        )
-        row_dict["input_ids"] = input_ids
-        row_dict["attention_mask"] = attention_mask
-        row_dict["position_ids"] = position_ids
-        row_dict["raw_prompt_ids"] = self.tokenizer.encode(prompt, add_special_tokens=False)
-        row_dict["ground_truth"] = row_dict.pop(self.answer_key)
         return row_dict
