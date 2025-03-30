@@ -166,7 +166,7 @@ class RLHFDataset(Dataset, ImageProcessMixin):
                 prompt = prompt.replace("<image>", "<|vision_start|><|image_pad|><|vision_end|>")
                 row_dict["multi_modal_data"] = {
                     "image": [
-                        process_image(image, self.max_pixels, self.min_pixels) for image in row_dict.pop(self.image_key)
+                        self.process_image(image) for image in row_dict.pop(self.image_key)
                     ]
                 }
                 model_inputs = self.processor(row_dict["multi_modal_data"]["image"], prompt, return_tensors="pt")

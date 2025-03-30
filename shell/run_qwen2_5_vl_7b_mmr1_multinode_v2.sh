@@ -91,7 +91,7 @@ echo "submit ray job" &>> ${JOBLOG}
 #         data.max_prompt_length=6144 \
 #         worker.actor.model.model_path=${MODEL_PATH} \
 #         worker.rollout.enable_chunked_prefill=false \
-#         trainer.experiment_name=qwen2_5_vl_7b_mmr1_multinode \
+#         trainer.experiment_name=${SLURM_JOB_NAME} \
 #         trainer.n_gpus_per_node=8 \
 #         trainer.nnodes=${SLURM_NNODES} \
 #         trainer.save_checkpoint_path=${OUTPUT_DIR} \
@@ -109,7 +109,7 @@ srun --overlap --nodes=1 --ntasks=1 --gres=gpu:0 -w "$head_node" \
         data.max_prompt_length=6144 \
         worker.actor.model.model_path=${MODEL_PATH} \
         worker.rollout.enable_chunked_prefill=false \
-        trainer.experiment_name=qwen2_5_vl_7b_mmr1_multinode \
+        trainer.experiment_name=${SLURM_JOB_NAME} \
         trainer.n_gpus_per_node=8 \
         trainer.nnodes=${SLURM_NNODES} \
         trainer.save_checkpoint_path=${OUTPUT_DIR} \

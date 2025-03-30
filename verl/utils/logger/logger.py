@@ -71,7 +71,12 @@ class TensorBoardLogger(Logger):
         os.makedirs(tensorboard_dir, exist_ok=True)
         print(f"Saving tensorboard log to {tensorboard_dir}.")
         self.writer = SummaryWriter(tensorboard_dir)
-        self.writer.add_hparams(flatten_dict(config))
+        # 使用占位值填充 metric_dict
+        metric_dict = {'accuracy': -1, 'loss': -1}
+        flatten_config = flatten_dict(config)
+        print(flatten_config)
+        flatten_config = {key: value for key, value in flatten_config.items() if isinstance(value, (int, float, str, bool))}
+        self.writer.add_hparams(flatten_config, metric_dict)
 
     def log(self, data: Dict[str, Any], step: int) -> None:
         for key, value in data.items():

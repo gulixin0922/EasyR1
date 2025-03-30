@@ -20,5 +20,4 @@ python3 -m verl.trainer.main \
     trainer.experiment_name=qwen2_5_vl_7b_mmr1 \
     trainer.n_gpus_per_node=8 \
     trainer.val_freq=10 \
-    trainer.save_freq=10 \
-    trainer.load_checkpoint_path=/mnt/petrelfs/gulixin/workspace/EasyR1/checkpoints/easy_r1/qwen2_5_vl_7b_mmr1/global_step_20
+    trainer.save_freq=10
