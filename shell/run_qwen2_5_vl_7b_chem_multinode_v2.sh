@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #SBATCH --partition=Intern5
-#SBATCH --job-name=qwen2_5_chem_v1_multi_image
+#SBATCH --job-name=qwen2_5_chem_v1_multi_image_node1
 #SBATCH --gres=gpu:8
-#SBATCH --nodes=4
+#SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
 #SBATCH --quotatype=reserved
@@ -96,11 +96,12 @@ srun --overlap --nodes=1 --ntasks=1 --gres=gpu:0 -w "$head_node" \
         worker.rollout.enable_chunked_prefill=false \
         worker.rollout.limit_images=10 \
         worker.rollout.max_num_batched_tokens=12288 \
-        trainer.experiment_name=qwen2_5_vl_7b_chem_v1_multinode \
+        trainer.experiment_name=${SLURM_JOB_NAME} \
         trainer.n_gpus_per_node=8 \
         trainer.nnodes=${SLURM_NNODES} \
         trainer.save_checkpoint_path=${OUTPUT_DIR} \
-        trainer.logger=['console'] \
+        trainer.logger=['console','tensorboard'] \
+        trainer.save_limit=-1 \
         trainer.val_freq=30 \
         trainer.save_freq=30 &>> ${JOBLOG}
 

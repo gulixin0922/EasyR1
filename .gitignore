@@ -175,3 +175,5 @@ outputs/
 checkpoints/
 wandb/
 logs/
+tensorboard_log/
+results/
