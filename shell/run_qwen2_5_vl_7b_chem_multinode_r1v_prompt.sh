@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #SBATCH --partition=Intern5
-#SBATCH --job-name=qwen2_5_chem_v1_multi_image_node1
+#SBATCH --job-name=qwen2_5_chem_v1_multi_image_r1v_prompt
 #SBATCH --gres=gpu:8
-#SBATCH --nodes=1
+#SBATCH --nodes=4
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
 #SBATCH --quotatype=reserved
@@ -78,8 +78,12 @@ sleep 20
 
 # MODEL_PATH=Qwen/Qwen2.5-VL-7B-Instruct  # replace it with your local file path
 MODEL_PATH=/mnt/petrelfs/gulixin/.cache/huggingface/hub/models--Qwen--Qwen2.5-VL-7B-Instruct/snapshots/68156fd997cdc9f710620466735af49862bb81f6
-SYSTEM_PROMPT="""You FIRST think about the reasoning process as an internal monologue and then provide the final answer.
- The reasoning process MUST BE enclosed within <think> </think> tags. The final answer MUST BE put in \boxed{}."""
+# SYSTEM_PROMPT="""You FIRST think about the reasoning process as an internal monologue and then provide the final answer.
+#  The reasoning process MUST BE enclosed within <think> </think> tags. The final answer MUST BE put in \boxed{}."""
+SYSTEM_PROMPT="""A conversation between User and Assistant. The user asks a question, and the Assistant solves it. The assistant
+ first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning
+ process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e.,
+ <think> reasoning process here </think><answer> answer here </answer>"""
 
 echo "submit ray job" &>> ${JOBLOG}
 # 需要关闭代理proxy_off，否则连不上http://localhost:8265
@@ -96,6 +100,7 @@ srun --overlap --nodes=1 --ntasks=1 --gres=gpu:0 -w "$head_node" \
         worker.rollout.enable_chunked_prefill=false \
         worker.rollout.limit_images=10 \
         worker.rollout.max_num_batched_tokens=12288 \
+        worker.reward.compute_score=r1v \
         trainer.experiment_name=${SLURM_JOB_NAME} \
         trainer.n_gpus_per_node=8 \
         trainer.nnodes=${SLURM_NNODES} \

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --partition=Intern5
-#SBATCH --job-name=qwen2_5_mmr1_node4
+#SBATCH --partition=VC5
+#SBATCH --job-name=qwen2_5_chem_v1_multi_image_node1_dataset_update
 #SBATCH --gres=gpu:8
-#SBATCH --nodes=4
+#SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=12
 #SBATCH --quotatype=reserved
@@ -82,39 +82,27 @@ SYSTEM_PROMPT="""You FIRST think about the reasoning process as an internal mono
  The reasoning process MUST BE enclosed within <think> </think> tags. The final answer MUST BE put in \boxed{}."""
 
 echo "submit ray job" &>> ${JOBLOG}
-# srun --overlap --nodes=1 --ntasks=1 --gres=gpu:0 -w "$head_node" \
-#     python3 -m verl.trainer.main \
-#         config=examples/grpo_example.yaml \
-#         data.train_files=/mnt/petrelfs/share_data/gulixin/r1_like_data/MMR1-Math-RL-Data-v0/data/train-00000-of-00001.parquet \
-#         data.val_files=/mnt/petrelfs/share_data/gulixin/r1_like_data/MMR1-Math-RL-Data-v0/data/validation-00000-of-00001.parquet \
-#         data.system_prompt="${SYSTEM_PROMPT}" \
-#         data.max_prompt_length=6144 \
-#         worker.actor.model.model_path=${MODEL_PATH} \
-#         worker.rollout.enable_chunked_prefill=false \
-#         trainer.experiment_name=${SLURM_JOB_NAME} \
-#         trainer.n_gpus_per_node=8 \
-#         trainer.nnodes=${SLURM_NNODES} \
-#         trainer.save_checkpoint_path=${OUTPUT_DIR} \
-#         trainer.val_freq=10 \
-#         trainer.save_freq=10 &>> ${JOBLOG}
-
 # 需要关闭代理proxy_off，否则连不上http://localhost:8265
 srun --overlap --nodes=1 --ntasks=1 --gres=gpu:0 -w "$head_node" \
     ray job submit --address=http://localhost:8265 \
         -- python3 -m verl.trainer.main \
         config=examples/config.yaml \
-        data.train_files=/mnt/petrelfs/share_data/gulixin/r1_like_data/MMR1-Math-RL-Data-v0/data/train-00000-of-00001.parquet \
-        data.val_files=/mnt/petrelfs/share_data/gulixin/r1_like_data/MMR1-Math-RL-Data-v0/data/validation-00000-of-00001.parquet \
+        data.train_files=/mnt/petrelfs/share_data/gulixin/r1_like_data/ai4chem/training_data_v1.jsonl \
+        data.val_files=/mnt/petrelfs/share_data/gulixin/r1_like_data/ai4chem/validation_data_v1.jsonl \
         data.system_prompt="${SYSTEM_PROMPT}" \
-        data.max_prompt_length=6144 \
+        data.max_prompt_length=10240 \
+        data.max_response_length=2048 \
         worker.actor.model.model_path=${MODEL_PATH} \
         worker.rollout.enable_chunked_prefill=false \
+        worker.rollout.limit_images=10 \
+        worker.rollout.max_num_batched_tokens=12288 \
         trainer.experiment_name=${SLURM_JOB_NAME} \
         trainer.n_gpus_per_node=8 \
         trainer.nnodes=${SLURM_NNODES} \
         trainer.save_checkpoint_path=${OUTPUT_DIR} \
-        trainer.logger=['console'] \
-        trainer.val_freq=10 \
-        trainer.save_freq=10 &>> ${JOBLOG}
+        trainer.logger=['console','tensorboard'] \
+        trainer.save_limit=-1 \
+        trainer.val_freq=30 \
+        trainer.save_freq=30 &>> ${JOBLOG}
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') Job ${SLURM_JOB_ID} stopped ..." &>> ${JOBLOG}

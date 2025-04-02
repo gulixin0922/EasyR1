@@ -24,6 +24,14 @@ ds_collections = {
     'CMMU-Thinking':{
         'root': '/mnt/petrelfs/share_data/gulixin/chemvlm/cmmu',
         'question': '/mnt/petrelfs/share_data/gulixin/chemvlm/cmmu/chemistry_conv.jsonl',
+    },
+    'mmcr_post-Base':{
+        'root': '/mnt/petrelfs/share_data/gulixin/datasets/chemistry_postgraduate_examination_qa',
+        'question': '/mnt/petrelfs/share_data/gulixin/chemvlm/mmcr_post/test_set_all_filtered.jsonl',
+    },
+    'mmcr_post-Thinking':{
+        'root': '/mnt/petrelfs/share_data/gulixin/datasets/chemistry_postgraduate_examination_qa',
+        'question': '/mnt/petrelfs/share_data/gulixin/chemvlm/mmcr_post/test_set_all_filtered.jsonl',
     }
 }
 

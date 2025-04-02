@@ -37,6 +37,20 @@ ds_collections = {
         'max_new_tokens': 4000,
         'min_new_tokens': 1,
     },
+    'mmcr_post-Base':{
+        'root': '/mnt/petrelfs/share_data/gulixin/datasets/chemistry_postgraduate_examination_qa',
+        'question': '/mnt/petrelfs/share_data/gulixin/chemvlm/mmcr_post/test_set_all_filtered.jsonl',
+        'prompt': "回答上面的考题，请先输出解析再输出最终答案。",
+        'max_new_tokens': 4000,
+        'min_new_tokens': 1,
+    },
+    'mmcr_post-Thinking':{
+        'root': '/mnt/petrelfs/share_data/gulixin/datasets/chemistry_postgraduate_examination_qa',
+        'question': '/mnt/petrelfs/share_data/gulixin/chemvlm/mmcr_post/test_set_all_filtered.jsonl',
+        'prompt': SYSTEM_PROMPT,
+        'max_new_tokens': 4000,
+        'min_new_tokens': 1,
+    },
 }
 
 
@@ -54,11 +68,14 @@ class chemDataset(torch.utils.data.Dataset):
         question_id = data_item['id']
         annotation = data_item['conversations'][1]["value"] #TODO
         if 'image' in data_item:
-            image_path_list = [data_item['image']]
+            image_path_list = data_item['image']
         elif 'images' in data_item:
             image_path_list = data_item['images']
         else:
             image_path_list = []
+        
+        if isinstance(image_path_list, str):
+            image_path_list = [image_path_list]
         
         image_path_list = [os.path.join(self.root, image_path) for image_path in image_path_list]
         question  = data_item['conversations'][0]['value']
@@ -154,7 +171,11 @@ def evaluate_chat_model():
             prompt = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
             prompt = prompt.replace("<image>", "<|vision_start|><|image_pad|><|vision_end|>")
             image_inputs = [process_image(Image.open(image_path), args.min_pixels, args.max_pixels) for image_path in image_path_list[0]]
-            inputs = processor(images=image_inputs, text=prompt, return_tensors="pt")
+            if len(image_inputs) > 0:
+                inputs = processor(images=image_inputs, text=prompt, return_tensors="pt")
+            else:
+                inputs = processor(images=None, text=prompt, return_tensors="pt")
+            # inputs = inputs.to(f'cuda:{int(os.getenv("LOCAL_RANK", 0))}')
             inputs = inputs.to("cuda")
             generated_ids = model.generate(
                 **inputs,
@@ -228,7 +249,8 @@ if __name__ == '__main__':
     )
     torch.cuda.set_device(int(os.getenv('LOCAL_RANK', 0)))
     
-    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(args.checkpoint, torch_dtype="auto", device_map="auto")
+    # model = Qwen2_5_VLForConditionalGeneration.from_pretrained(args.checkpoint, torch_dtype=torch.bfloat16, device_map=f"cuda:{int(os.getenv('LOCAL_RANK', 0))}")
+    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(args.checkpoint, torch_dtype=torch.bfloat16).cuda().eval()
     processor = AutoProcessor.from_pretrained(args.checkpoint)
 
     total_params = sum(p.numel() for p in model.parameters()) / 1e9

@@ -25,9 +25,9 @@ GPUS=${GPUS:-8}
 export MASTER_PORT=${MASTER_PORT}
 export PORT=${PORT}
 
-export OPENAI_API_KEY=sk-BDEtl2RL9CbNxn2O6rpTTY7IrtDwk54wXCNVyH4gkiroaQpy
-export OPENAI_PROXY_URL=http://closeai-proxy.pjlab.org.cn:23128
-export OPENAI_BASE_URL=https://boyuerichdata.chatgptten.com/v1
+export OPENAI_API_KEY=''
+export OPENAI_PROXY_URL=''
+export OPENAI_BASE_URL=''
 
 # Save original arguments
 ARGS=("$@")
@@ -47,10 +47,12 @@ done
 echo "GPUS: ${GPUS}"
 
 
-DATASETS=("CMMU-Base")
+# DATASETS=("CMMU-Base")
 # DATASETS=("CMMU-Thinking")
+# DATASETS=("mmcr_post-Base")
+DATASETS=("mmcr_post-Thinking")
 for dataset in "${DATASETS[@]}"; do
-  # # echo "submit: $dataset"
+  # echo "submit: $dataset"
   torchrun \
   --nnodes=1 \
   --node_rank=0 \
@@ -60,9 +62,9 @@ for dataset in "${DATASETS[@]}"; do
   eval/chemvlm/evaluate.py --checkpoint ${CHECKPOINT} --datasets $dataset --out-dir ${OUT_PATH} \
   2>&1 | tee -a "${OUT_PATH}/log_infer.txt"
 
-  if [ ${dataset} == "CMMU-Base" ]; then
+  if [[ ${dataset} == "CMMU-Base" || ${dataset} == "CMMU-Thinking" ]]; then
     python -u  eval/chemvlm/test_exam_performance.py --out-dir ${OUT_PATH} --datasets $dataset 2>&1 | tee -a "${OUT_PATH}/log_score.txt"
-  elif [ ${dataset} == "CMMU-Thinking" ]; then
+  elif [[ ${dataset} == "mmcr_post-Base" || ${dataset} == "mmcr_post-Thinking" ]]; then
     python -u  eval/chemvlm/test_exam_performance.py --out-dir ${OUT_PATH} --datasets $dataset 2>&1 | tee -a "${OUT_PATH}/log_score.txt"
   fi
 
