@@ -57,6 +57,7 @@ echo "IP Head: $ip_head" &>> ${JOBLOG}
 # make sure we set environment variables before Ray initialization
 export VLLM_ATTENTION_BACKEND=FLASH_ATTN
 export VLLM_USE_V1=0
+export TENSORBOARD_DIR=${OUTPUT_DIR}/tensorboard_log
 
 echo "Starting HEAD at $head_node" &>> ${JOBLOG}
 srun --nodes=1 --ntasks=1 -w "$head_node" \

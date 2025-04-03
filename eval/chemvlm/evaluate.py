@@ -17,8 +17,14 @@ from copy import deepcopy
 from typing import Dict
 
 
-SYSTEM_PROMPT="""You FIRST think about the reasoning process as an internal monologue and then provide the final answer.
- The reasoning process MUST BE enclosed within <think> </think> tags. The final answer MUST BE put in \\boxed{}."""
+# SYSTEM_PROMPT="""You FIRST think about the reasoning process as an internal monologue and then provide the final answer.
+#  The reasoning process MUST BE enclosed within <think> </think> tags. The final answer MUST BE put in \\boxed{}."""
+ 
+  
+SYSTEM_PROMPT="""A conversation between User and Assistant. The user asks a question, and the Assistant solves it. The assistant
+ first thinks about the reasoning process in the mind and then provides the user with the answer. The reasoning
+ process and answer are enclosed within <think> </think> and <answer> </answer> tags, respectively, i.e.,
+ <think> reasoning process here </think><answer> answer here </answer>"""
 
 
 ds_collections = {
